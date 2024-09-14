@@ -1,0 +1,90 @@
+#include <pthread.h>
+#include <semaphore.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <unistd.h>
+
+#define BUFFER_SIZE 20
+
+pthread_mutex_t buffer_mutex;
+sem_t buffer_sem;
+
+int size = 0;
+int buffer[BUFFER_SIZE];
+
+void *consumerRoutine(void *args);
+void *producerRoutine(void *argd);
+void printBuffer(int size);
+
+int main() {
+
+  // init the  mutex buffer
+  sem_init(&buffer_sem, 0, 1);
+  pthread_mutex_init(&buffer_mutex, NULL);
+  pthread_t the_consumer_thread, the_producer_thread;
+
+  // create the the consumer thread
+  pthread_create(&the_consumer_thread, NULL, consumerRoutine, NULL);
+  // create the producer thread
+  pthread_create(&the_producer_thread, NULL, producerRoutine, NULL);
+
+  // join the producer thread
+  pthread_join(the_producer_thread, NULL);
+  // join the consumer thread
+  pthread_join(the_consumer_thread, NULL);
+
+  // destory the mutex buffer
+  pthread_mutex_destroy(&buffer_mutex);
+  sem_destroy(&buffer_sem);
+
+  return 0;
+}
+
+void *consumerRoutine(void *args) {
+  while (1) {
+
+    if (BUFFER_SIZE == 0) {
+      printf("the buffer is empty, the consumer waiting for the producer\n");
+      sem_wait(&buffer_sem);
+    }
+
+    while (BUFFER_SIZE != 0) {
+      pthread_mutex_lock(&buffer_mutex);
+      printf("consume the value %d at index %d", buffer[size], size);
+      buffer[size] = 0;
+      size--;
+      pthread_mutex_unlock(&buffer_mutex);
+      sem_post(&buffer_sem);
+      sleep(rand() % 2 + 1);
+    }
+  }
+  return NULL;
+}
+
+void *producerRoutine(void *args) {
+  while (1) {
+
+    if (BUFFER_SIZE == size) {
+      printf("the buffer is full, the producer wait for the consumer\n");
+      sem_wait(&buffer_sem);
+    }
+
+    while (BUFFER_SIZE < size) {
+      pthread_mutex_lock(&buffer_mutex);
+      int newValue = rand() % 5 + 1;
+      buffer[size] = newValue;
+      size++;
+      pthread_mutex_unlock(&buffer_mutex);
+      sem_post(&buffer_sem);
+      sleep(rand() % 2 + 1);
+    }
+    return NULL;
+  }
+}
+
+void printBuffer(int size) {
+  for (int i = 0; i <= size; i++)
+    printf("[%d]", buffer[i]);
+  printf("\n");
+}
